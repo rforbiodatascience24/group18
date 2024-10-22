@@ -6,12 +6,81 @@ editor: visual
 
 ## Group number: 18
 
-## Florencia De Lillo, s242869
+-   Florencia De Lillo, s242869
 
-## Maria Kokali, s232486
+-   Maria Kokali, s232486
 
-## Nikolas Alexander Mumm, s242825
+-   Nikolas Alexander Mumm, s242825
 
-## Rodrigo Gallegos Dextre, s243563
+-   Rodrigo Gallegos Dextre, s243563
 
-## Émile Knut Barbé, s242826
+-   Émile Knut Barbé, s242826
+
+## Libraries
+
+```{r}
+library("readr")
+library("stringr")
+library("tidyverse")
+library("patchwork")
+library("ggridges")
+library("MASS")
+
+```
+
+## Data
+
+```{r}
+raw_dir <- "data/"
+data_file <- "gravier.RData"
+data_loc <- "https://github.com/ramhiser/datamicroarray/raw/master/data/"
+
+if( !dir.exists(raw_dir) ){
+  dir.create(path = raw_dir)
+}
+if( !file.exists(str_c(raw_dir, data_file)) ){
+  download.file(
+    url = str_c(data_loc, data_file),
+    destfile = str_c(raw_dir, data_file))
+}
+load(file = str_c(raw_dir, data_file))
+
+```
+```{r}
+gravier_clean <- gravier |>
+  bind_cols() |>
+  as_tibble()
+```
+
+```{r}
+gravier_clean_aug <- gravier_clean |>
+  mutate(y = case_when(y == "poor" ~ 1,
+                       y == "good" ~ 0)) |> 
+  relocate(early_metastasis = y)
+```
+
+## PCA
+
+```{r}
+gravier_counts_t=t(gravier_clean_aug)
+gravier_counts_filtered <- gravier_counts_t[, apply(gravier_counts_t, 2, var) != 0] #1=rows, 2=columns
+pca_count <- prcomp((gravier_counts_filtered), scale. = TRUE)
+```
+
+```{r}
+# Extract the first few principal components
+pc1 <- pca_count$x[, 1]
+pc2 <- pca_count$x[, 2]
+
+# Visualize the PCA results (scatter plot of PC1 vs. PC2)
+plot(pc1, pc2, main = "PCA: PC1 vs. PC2", xlab = "PC1", ylab = "PC2")
+```
+
+```{r}
+variance_explained <- pca_count$sdev^2 # Get the variance of each principal component
+prop_variance_explained <- variance_explained / sum(variance_explained) # Proportion of variance explained
+prop_variance_explained
+cum_variance_explained <- cumsum(prop_variance_explained)
+print(summary(pca_count))
+```
+
