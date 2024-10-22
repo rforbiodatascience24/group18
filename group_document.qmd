@@ -24,7 +24,9 @@ library("stringr")
 library("tidyverse")
 library("patchwork")
 library("ggridges")
-library("MASS")
+library("dplyr")
+library("broom")
+library("cowplot")
 
 ```
 
@@ -46,6 +48,7 @@ if( !file.exists(str_c(raw_dir, data_file)) ){
 load(file = str_c(raw_dir, data_file))
 
 ```
+
 ```{r}
 gravier_clean <- gravier |>
   bind_cols() |>
@@ -54,33 +57,59 @@ gravier_clean <- gravier |>
 
 ```{r}
 gravier_clean_aug <- gravier_clean |>
-  mutate(y = case_when(y == "poor" ~ 1,
-                       y == "good" ~ 0)) |> 
   relocate(early_metastasis = y)
 ```
 
 ## PCA
 
 ```{r}
-gravier_counts_t=t(gravier_clean_aug)
-gravier_counts_filtered <- gravier_counts_t[, apply(gravier_counts_t, 2, var) != 0] #1=rows, 2=columns
-pca_count <- prcomp((gravier_counts_filtered), scale. = TRUE)
+pca_fit <- gravier_clean_aug |> 
+  select_if(is.numeric) |>   
+  prcomp(scale = TRUE)
+
 ```
 
 ```{r}
-# Extract the first few principal components
-pc1 <- pca_count$x[, 1]
-pc2 <- pca_count$x[, 2]
+pca_fit |> 
+  augment(gravier_clean_aug) |>  # add original dataset back in
+  ggplot(aes(.fittedPC1, .fittedPC2, color = early_metastasis)) + 
+  geom_point(size = 1.5) +
+  scale_color_manual(
+    values = c(poor = "#D55E00", good = "#0072B2")
+  ) +
+  theme_half_open(12) + background_grid()
+```
 
-# Visualize the PCA results (scatter plot of PC1 vs. PC2)
-plot(pc1, pc2, main = "PCA: PC1 vs. PC2", xlab = "PC1", ylab = "PC2")
+
+
+```{r}
+loading_scores <- as.data.frame(pca_fit$rotation) |> 
+  rownames_to_column(var = "term") |>  
+  as_tibble()  
+
+gene_scores <- loading_scores |> 
+  mutate(abs_value = abs(PC1)) |>   
+  arrange(desc(abs_value))          
+
+top_10_genes <- gene_scores  |> 
+  slice_head(n = 10) |>   
+  pull(term)              
+
+print(top_10_genes)
+
+ #Loadings for the top 10 genes (with signs)
+top_genes_loadings <- gene_scores |> 
+  filter(term %in% top_10_genes) 
+
+
 ```
 
 ```{r}
-variance_explained <- pca_count$sdev^2 # Get the variance of each principal component
-prop_variance_explained <- variance_explained / sum(variance_explained) # Proportion of variance explained
-prop_variance_explained
-cum_variance_explained <- cumsum(prop_variance_explained)
-print(summary(pca_count))
+ggplot(top_genes_loadings, aes(x = reorder(term, PC1), y = PC1)) +
+  geom_bar(stat = "identity") + 
+  coord_flip() +                 
+  labs(x = "Terms (Genes)", y = "Loadings (PC1)", title = "Bar Plot of Loadings for PC1") +
+  theme_minimal() +              # Use a minimal theme
+  theme(axis.text.y = element_text(size = 8))  
 ```
 
