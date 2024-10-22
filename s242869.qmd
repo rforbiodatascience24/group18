@@ -1,7 +1,0 @@
----
-title: "s242869"
-format: html
-editor: visual
----
-
-## Quarto
